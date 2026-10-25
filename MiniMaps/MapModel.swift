@@ -179,7 +179,7 @@ final class MapModel: NSObject, ObservableObject, @preconcurrency CLLocationMana
             }
             self.route = route
             let rect = route.polyline.boundingMapRect
-            self.camera = .rect(rect.insetBy(dx: -max(rect.width * 0.18, 200), dy: -max(rect.height * 0.18, 200)))
+            self.camera = .rect(rect.insetBy(dx: -max(rect.width * 0.5, 200), dy: -max(rect.height * 0.5, 200)))
         }
     }
 
