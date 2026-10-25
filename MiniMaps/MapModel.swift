@@ -1,0 +1,208 @@
+import Combine
+import CoreLocation
+import MapKit
+import SwiftUI
+
+struct Place: Identifiable {
+    let id = UUID()
+    let item: MKMapItem
+    var name: String { item.name ?? "Unnamed place" }
+}
+
+/// Owns cancellable MapKit requests. Request IDs prevent old responses replacing new state.
+@MainActor
+final class MapModel: NSObject, ObservableObject, @preconcurrency CLLocationManagerDelegate {
+    static let home = CLLocationCoordinate2D(latitude: 37.3349, longitude: -122.0090)
+    static let region = MKCoordinateRegion(center: home, span: .init(latitudeDelta: 0.035, longitudeDelta: 0.035))
+    @Published var places: [Place] = []
+    @Published var selection: UUID? { didSet { if oldValue != selection { cancelRoute() } } }
+    @Published var isSearching = false
+    @Published var isRouting = false
+    @Published var isLocating = false
+    @Published var searchMessage: String?
+    @Published var routeMessage: String?
+    @Published var locationMessage: String?
+    @Published var location: CLLocation?
+    @Published var route: MKRoute?
+    @Published var camera: MapCameraPosition = .region(region)
+    @Published var useCurrentLocation = false { didSet { if oldValue != useCurrentLocation { cancelRoute() } } }
+    @Published var canOpenSettings = false
+    var visibleRegion = region
+    var selectedPlace: Place? { places.first { $0.id == selection } }
+    private let manager = CLLocationManager()
+    private var search: MKLocalSearch?
+    private var directions: MKDirections?
+    private var searchID = UUID()
+    private var routeID = UUID()
+    private var locationTimeout: Task<Void, Never>?
+
+    override init() {
+        super.init()
+        manager.delegate = self
+        manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+    }
+
+    func searchPlaces(_ query: String) {
+        cancelSearch()
+        cancelRoute()
+        selection = nil
+        places = []
+        let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { searchMessage = "Enter a place or address to search."; return }
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = text
+        request.region = visibleRegion // A relevance hint, not a strict geographic boundary.
+        let operation = MKLocalSearch(request: request)
+        search = operation
+        let id = searchID
+        isSearching = true
+        searchMessage = nil
+        operation.start { [weak self] response, error in
+            Task { @MainActor in
+                guard let self, self.searchID == id else { return }
+                self.isSearching = false
+                self.search = nil
+                guard let response, error == nil else {
+                    if (error as? MKError)?.code == .placemarkNotFound {
+                        self.searchMessage = "No places found. Try a different name or address."
+                    } else {
+                        self.searchMessage = "Search couldn’t finish. Check your connection and try again."
+                    }
+                    return
+                }
+                self.places = response.mapItems.filter { CLLocationCoordinate2DIsValid($0.placemark.coordinate) }.map { Place(item: $0) }
+                if self.places.isEmpty { self.searchMessage = "No places found. Try a different name or address." }
+                else { self.camera = .region(response.boundingRegion) }
+            }
+        }
+    }
+
+    func cancelSearch() {
+        searchID = UUID()
+        search?.cancel()
+        search = nil
+        isSearching = false
+    }
+
+    func select(_ place: Place) {
+        selection = place.id
+        camera = .region(.init(center: place.item.placemark.coordinate, span: .init(latitudeDelta: 0.012, longitudeDelta: 0.012)))
+    }
+
+    func cancelRoute() {
+        routeID = UUID()
+        directions?.cancel()
+        directions = nil
+        isRouting = false
+        route = nil
+        routeMessage = nil
+    }
+
+    func drivingDirections() {
+        cancelRoute()
+        guard let destination = selectedPlace else { return }
+        let origin: CLLocationCoordinate2D
+        if useCurrentLocation {
+            guard let location, abs(location.timestamp.timeIntervalSinceNow) < 120 else {
+                routeMessage = "Tap Locate to get a fresh location, then try directions again."
+                return
+            }
+            origin = location.coordinate
+        } else { origin = Self.home }
+        let request = MKDirections.Request()
+        request.source = MKMapItem(placemark: MKPlacemark(coordinate: origin))
+        request.destination = destination.item
+        request.transportType = .automobile
+        let operation = MKDirections(request: request)
+        directions = operation
+        let id = routeID
+        isRouting = true
+        operation.calculate { [weak self] response, error in
+            Task { @MainActor in
+                guard let self, self.routeID == id else { return }
+                self.isRouting = false
+                self.directions = nil
+                guard error == nil, let route = response?.routes.first else {
+                    self.routeMessage = "No driving route available. Try another destination or check your connection."
+                    return
+                }
+                self.route = route
+                let rect = route.polyline.boundingMapRect
+                self.camera = .rect(rect.insetBy(dx: -max(rect.width * 0.18, 200), dy: -max(rect.height * 0.18, 200)))
+            }
+        }
+    }
+
+    func locate() {
+        guard !isLocating else { return }
+        locationMessage = nil
+        canOpenSettings = false
+        isLocating = true
+        switch manager.authorizationStatus {
+        case .notDetermined: manager.requestWhenInUseAuthorization()
+        case .authorizedAlways, .authorizedWhenInUse: requestFix()
+        case .denied: locationUnavailable("Location access is denied. Enable it in Settings, or use Apple Park as your route origin.", settings: true)
+        case .restricted: locationUnavailable("Location access is restricted by device policy. You can still search and route from Apple Park.")
+        @unknown default: locationUnavailable("Location authorization is unavailable.")
+        }
+    }
+
+    private func requestFix() {
+        manager.requestLocation()
+        locationTimeout?.cancel()
+        locationTimeout = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 20_000_000_000)
+            guard !Task.isCancelled, let self, self.isLocating else { return }
+            self.manager.stopUpdatingLocation()
+            self.locationUnavailable("Location timed out. Check Location Services and try again.")
+        }
+    }
+
+    private func locationUnavailable(_ message: String, settings: Bool = false) {
+        locationTimeout?.cancel()
+        isLocating = false
+        locationMessage = message
+        canOpenSettings = settings
+    }
+
+    func cancelLocation() {
+        locationTimeout?.cancel()
+        manager.stopUpdatingLocation()
+        isLocating = false
+    }
+
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        switch manager.authorizationStatus {
+        case .authorizedAlways, .authorizedWhenInUse:
+            if isLocating { requestFix() }
+        case .denied, .restricted:
+            location = nil
+            if useCurrentLocation { cancelRoute() }
+            if isLocating {
+                locationUnavailable(manager.authorizationStatus == .denied ? "Location access is denied. You can enable it in Settings." : "Location access is restricted by device policy.", settings: manager.authorizationStatus == .denied)
+            }
+        default: break
+        }
+    }
+
+    func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
+        guard isLocating else { return }
+        guard let fix = locations.last, fix.horizontalAccuracy >= 0,
+              abs(fix.timestamp.timeIntervalSinceNow) < 120 else {
+            locationUnavailable("A fresh location wasn’t available. Please try again.")
+            return
+        }
+        locationTimeout?.cancel()
+        isLocating = false
+        location = fix
+        if useCurrentLocation { cancelRoute() }
+        camera = .region(.init(center: fix.coordinate, span: .init(latitudeDelta: 0.025, longitudeDelta: 0.025)))
+        let accuracy = Int(fix.horizontalAccuracy.rounded())
+        locationMessage = manager.accuracyAuthorization == .reducedAccuracy ? "Approximate location received. Routes may start away from your exact position." : "Location updated (accuracy about \(accuracy) m)."
+    }
+
+    func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
+        guard isLocating else { return }
+        locationUnavailable("Your location is unavailable. Check Location Services or the simulator’s location setting and try again.")
+    }
+}
