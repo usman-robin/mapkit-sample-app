@@ -37,13 +37,19 @@ Apple documentation: [MapKit](https://developer.apple.com/documentation/mapkit/)
 
 ## Screenshots and demo
 
-[Download the demo video](demo.mp4) — a 29-second captioned walkthrough of place search, tapping a map pin, place details, driving directions, and satellite imagery, ending with a brief closing card. No narration.
+[Download the demo video](demo.mp4) — a captioned walkthrough of on-demand simulated location, place search, tapping a map pin, driving directions from My location, and satellite imagery. It ends with a brief closing card. The video explicitly labels the San Francisco position as simulated. No narration.
 
 | Search results | Driving route | Satellite route |
 | --- | --- | --- |
 | <img src="search-results.png" width="240" alt="Search results"> | <img src="driving-route.png" width="240" alt="Driving route"> | <img src="satellite-route.png" width="240" alt="Satellite route"> |
 
 [Denied-location screenshot](location-denied.png) was captured before the final display-name change.
+
+### Current-location routing (simulated San Francisco)
+
+| Driving route from My location | Satellite route |
+| --- | --- |
+| <img src="current-location-route.png" width="280" alt="Route from simulated current location"> | <img src="current-location-satellite.png" width="280" alt="Simulated current-location route in satellite view"> |
 
 ## Automated unit tests
 
