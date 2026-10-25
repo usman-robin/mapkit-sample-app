@@ -164,4 +164,29 @@ final class MapModelTests: XCTestCase {
         XCTAssertNil(model.routeMessage)
         XCTAssertFalse(model.isRouting)
     }
+
+    func testPermissionGrantClearsStaleDenialWithoutStartingLocation() {
+        let model = MapModel()
+        model.updateAuthorization(.denied)
+        XCTAssertTrue(model.canOpenSettings)
+        model.updateAuthorization(.authorizedWhenInUse)
+        XCTAssertFalse(model.canOpenSettings)
+        XCTAssertEqual(model.locationMessage, "Location access is enabled. Tap Locate to update your position.")
+        XCTAssertFalse(model.isLocating)
+    }
+    func testRestrictedPermissionGrantClearsStaleRestriction() {
+        let model = MapModel()
+        model.updateAuthorization(.restricted)
+        model.updateAuthorization(.authorizedWhenInUse)
+        XCTAssertFalse(model.canOpenSettings)
+        XCTAssertEqual(model.locationMessage, "Location access is enabled. Tap Locate to update your position.")
+    }
+    func testPermissionRevocationRemovesPreviouslyObtainedFix() {
+        let model = MapModel()
+        model.location = CLLocation(latitude: 37.3, longitude: -122.1)
+        model.updateAuthorization(.denied)
+        XCTAssertNil(model.location)
+        XCTAssertTrue(model.canOpenSettings)
+        XCTAssertFalse(model.isLocating)
+    }
 }
