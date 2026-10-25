@@ -221,17 +221,31 @@ final class MapModel: NSObject, ObservableObject, @preconcurrency CLLocationMana
         isLocating = false
     }
 
+    func refreshLocationAuthorization() {
+        updateAuthorization(manager.authorizationStatus)
+    }
+
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        switch manager.authorizationStatus {
+        updateAuthorization(manager.authorizationStatus)
+    }
+
+    /// Refresh status on return from Settings without requesting location implicitly.
+    func updateAuthorization(_ status: CLAuthorizationStatus) {
+        switch status {
         case .authorizedAlways, .authorizedWhenInUse:
+            let wasDenied = canOpenSettings || locationMessage?.contains("restricted") == true
+            canOpenSettings = false
             if isLocating { requestFix() }
+            else if wasDenied { locationMessage = "Location access is enabled. Tap Locate to update your position." }
         case .denied, .restricted:
             location = nil
             if useCurrentLocation { cancelRoute() }
-            if isLocating {
-                locationUnavailable(manager.authorizationStatus == .denied ? "Location access is denied. You can enable it in Settings." : "Location access is restricted by device policy.", settings: manager.authorizationStatus == .denied)
-            }
-        default: break
+            locationUnavailable(status == .denied
+                ? "Location access is denied. You can enable it in Settings."
+                : "Location access is restricted by device policy.", settings: status == .denied)
+        case .notDetermined:
+            if !isLocating { locationMessage = nil; canOpenSettings = false }
+        @unknown default: break
         }
     }
 

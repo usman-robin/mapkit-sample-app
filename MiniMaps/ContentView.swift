@@ -7,6 +7,7 @@ struct ContentView: View {
     @State private var showsSatellite = false
     @FocusState private var searchFocused: Bool
     @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Map(position: $model.camera, selection: $model.selection) {
@@ -32,6 +33,10 @@ struct ContentView: View {
         .onMapCameraChange(frequency: .onEnd) { model.visibleRegion = $0.region }
         .safeAreaInset(edge: .top, spacing: 0) { searchHeader }
         .safeAreaInset(edge: .bottom, spacing: 0) { resultsPanel }
+        .onAppear { model.refreshLocationAuthorization() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { model.refreshLocationAuthorization() }
+        }
         .onDisappear { model.cancelSearch(); model.cancelRoute(); model.cancelLocation() }
     }
 
