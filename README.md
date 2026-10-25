@@ -71,4 +71,6 @@ The latest video demonstrates a simulated location update, Ferry Building search
 
 Approximate location, restricted device policy, real offline transitions, accessibility extremes, real-device GPS performance, and exhaustive cancellation timing remain integration/device checks. Successful route presentation was verified in the simulator rather than through a deterministic unit test.
 
+Accessibility checks are planned and still pending; see the [accessibility test plan](TESTING.md#accessibility-test-plan).
+
 See [the test plan and evidence](TESTING.md) for the complete matrix, automated results, and observed checks.
