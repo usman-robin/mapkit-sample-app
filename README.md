@@ -37,7 +37,7 @@ Apple documentation: [MapKit](https://developer.apple.com/documentation/mapkit/)
 
 ## Screenshots and demo
 
-[Download the demo video](demo.mp4) — live place search, destination selection, driving directions, and satellite imagery. No narration.
+[Download the demo video](demo.mp4) — a 28-second captioned walkthrough of place search, tapping a map pin, place details, driving directions, and satellite imagery. No narration.
 
 | Search results | Driving route | Satellite route |
 | --- | --- | --- |
