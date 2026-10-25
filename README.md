@@ -1,23 +1,17 @@
-# MiniMaps
+# Usman's Mapkit Demo
 
-A personal SwiftUI and MapKit learning project targeting iOS 17 or later.
+A native iOS learning app built with SwiftUI, MapKit, and Core Location. Target: iOS 17+.
 
-## Milestone 1
+## Features
 
-- Interactive map initially centered on Apple Park.
-- A labeled marker at Apple Park.
-- Standard and satellite map styles.
-- Compass, pitch control, and scale.
-- Animated reset to the starting region.
-- Adaptive SwiftUI layout using system materials and text styles.
+- Interactive standard and satellite maps, compass, pitch controls, and reset to Apple Park.
+- Place/address search with `MKLocalSearch`, result cards, and selectable markers.
+- On-demand, when-in-use location access with denied/restricted/unavailable states and timeout handling.
+- Driving directions with `MKDirections`, a route polyline, distance, and estimated time.
+- Route origin choice: Apple Park for a permission-free demo, or a fresh device location after tapping Locate.
+- Cancellable searches/routes, with generation checks that prevent obsolete responses updating the UI.
 
-## Screenshots
-
-Captured from MiniMaps running on the iPhone 18 Pro simulator (iOS 27.0).
-
-| Standard map | Satellite imagery |
-| --- | --- |
-| <img src="standard-map.jpg" width="300" alt="MiniMaps showing Apple Park in standard map style"> | <img src="satellite-map.jpg" width="300" alt="MiniMaps showing Apple Park with satellite imagery"> |
+This is a route preview and API exploration app, not turn-by-turn navigation. Search and route requests use Apple's services; the app has no custom backend or location history. No background location permission is requested.
 
 ## Run
 
@@ -25,36 +19,40 @@ Captured from MiniMaps running on the iPhone 18 Pro simulator (iOS 27.0).
 2. Select the MiniMaps scheme and an iPhone simulator.
 3. Press Command-R.
 
-For a physical device, select your development team in Signing & Capabilities and use your own unique bundle identifier if required. No API key or location permission is needed for this milestone. Map tiles and imagery require network access.
+For a physical iPhone, select your development team in Signing & Capabilities. No API key is required. Search, directions, and uncached map tiles need network access.
 
-## Understand the code
+## Try it
 
-`MiniMapsApp.swift` supplies the app entry point and window. `ContentView.swift` owns the map UI:
+Search **Apple Infinite Loop**, select a result card or marker, leave **Apple Park** selected as the origin, and tap **Driving directions**. To route from a device location, tap **Locate**, grant permission, choose **My location**, and request directions. Simulator location must be configured for a successful fix.
 
-- `MKCoordinateRegion` describes the initial center and geographic span.
-- `MapCameraPosition` describes the map camera. Passing `$position` to `Map` creates a binding so both gestures and code can update it.
-- `Marker` adds a labeled geographic point.
-- `mapStyle` switches presentation without replacing the map.
-- `safeAreaInset` reserves space for controls without covering the central map content.
+## Code guide
 
-Apple's introduction: https://developer.apple.com/videos/play/wwdc2023/10043/
+- `MiniMapsApp.swift`: application entry point.
+- `ContentView.swift`: map, search controls, destination selection, route and status UI.
+- `MapModel.swift`: search/directions lifecycle, request cancellation, Core Location authorization and one-shot fixes. Published UI state is owned by the main actor.
 
-## Manual checks
+`MKLocalSearch.Request.region` biases search relevance; it does not restrict results to the visible map. Each query creates a fresh search object. `MKDirections` creates a route whose polyline is rendered with `MapPolyline`. Core Location is initialized on the main thread and only requests authorization after a Locate tap.
 
-- Launch: Apple Park and its marker are visible.
-- Pan, pinch, rotate, and tilt; tap Reset and confirm the initial region returns.
-- Switch satellite imagery on and off; verify camera position remains usable.
-- Rotate the device and try larger accessibility text sizes.
-- Enable VoiceOver and verify Reset and Satellite imagery are labeled.
-- Try a fresh launch without network access; observe missing tiles, then reconnect and verify recovery. Map tile loading has no app-level error UI in this milestone.
+Apple documentation: [MapKit](https://developer.apple.com/documentation/mapkit/), [MKLocalSearch](https://developer.apple.com/documentation/mapkit/mklocalsearch), [MKDirections](https://developer.apple.com/documentation/mapkit/mkdirections), [Core Location](https://developer.apple.com/documentation/corelocation/cllocationmanager).
 
-## Validation status
+## Screenshots and demo
 
-The app was built and launched through Xcode on the iPhone 18 Pro simulator (iOS 27.0). Standard and satellite map rendering were visually checked and captured. The full manual checklist above remains to be completed. Command-line verification in the restricted agent session was blocked by SwiftUI macro-plugin and CoreSimulator access errors.
+[Watch the simulator demo](demo.mp4) — live place search, destination selection, driving directions, and satellite imagery. No narration.
 
-## Next milestones
+| Search results | Driving route | Satellite route |
+| --- | --- | --- |
+| <img src="search-results.png" width="240" alt="Search results"> | <img src="driving-route.png" width="240" alt="Driving route"> | <img src="satellite-route.png" width="240" alt="Satellite route"> |
 
-1. Place search with `MKLocalSearch` and selectable result markers.
-2. On-demand location access with Core Location, including denied/restricted states.
-3. Driving directions with `MKDirections`, route overlays, and cancellation/error handling.
-4. Documented edge-case testing and screenshots from the running app.
+An earlier capture of denied location access is also included in docs/screenshots; it shows the previous display name.
+
+## Automated unit tests
+
+Press **Command-U** in Xcode with the MiniMaps scheme selected. **13 XCTest tests passed with zero failures** on iPhone 18 Pro / iOS 27.0 during the October 25, 2026 session.
+
+Tests inject controlled search and directions services into `MapModel`; they do not make live Apple service requests. Coverage includes blank/trimmed queries, regional search hints, successful/empty/failed searches, recovery, cancelled and out-of-order responses, driving-mode and origin selection, missing/stale location fixes, route errors, and cancellation after destination/origin changes. Real permissions, rendered maps, real-world route correctness, and GPS quality still need integration/manual testing.
+
+## Verification
+
+Built and launched in Xcode 27.1 on the iPhone 18 Pro simulator (iOS 27.0). Observed: place search, result selection, driving route calculation and overlay, on-demand permission prompt, and denied-location fallback. These checks do not establish real-device GPS performance or every failure mode.
+
+See [the edge-case test plan](TESTING.md) for scenarios and expected results. Restricted authorization, offline behavior, approximate location, rapid request cancellation, and physical-device testing remain manual checks unless explicitly marked as observed there.
