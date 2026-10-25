@@ -43,8 +43,14 @@ Search and route requests each have a generation UUID. Cancel, destination chang
 - PASS: changing to satellite preserves the visible route.
 - PASS: Locate triggers the system when-in-use prompt; Don't Allow displays denied guidance and a Settings button while the Apple Park route remains usable.
 - PASS: a failed search displays retry guidance and the next valid search succeeds.
-- NOT YET VERIFIED: allowed/approximate location fixes, restricted policy, rapid cancellation races, no-route cases, offline transitions, accessibility extremes, physical-device behavior.
+- NOT YET VERIFIED: approximate location fixes, restricted policy, rapid cancellation races, no-route cases, offline transitions, accessibility extremes, physical-device behavior.
 
 ## Automated XCTest results
 
-13 tests passed, 0 failures, in Xcode on October 25, 2026 at 10:55 AM PDT. Run with Command-U using the shared MiniMaps scheme. Search/directions protocols let tests deliver success, failure, and deliberately late callbacks without network access. Permission/system behavior and real map rendering remain simulator/device integration checks.
+16 tests passed, 0 failures, in Xcode on October 25, 2026 at 11:46 AM PDT. Run with Command-U using the shared MiniMaps scheme. Search/directions protocols let tests deliver success, failure, and deliberately late callbacks without network access. Permission/system behavior and real map rendering remain simulator/device integration checks.
+
+## Settings-return regression
+
+When changing Location Services from Never to While Using in iOS Settings, return to the app. The prior denial message must be replaced, the Settings action must disappear, and no location request should start until Locate is tapped. Authorization is refreshed on foreground activation as well as through the Core Location delegate. Regression tests cover grant after denial, grant after restriction, and revocation of a previously obtained fix.
+
+- PASS: While Using permission saved in Settings; Locate obtained simulated San Francisco coordinates and displayed accuracy about 5 m after the Settings-return refresh fix. This is simulator evidence, not real GPS accuracy.

@@ -47,9 +47,11 @@ Apple documentation: [MapKit](https://developer.apple.com/documentation/mapkit/)
 
 ## Automated unit tests
 
-Press **Command-U** in Xcode with the MiniMaps scheme selected. **13 XCTest tests passed with zero failures** on iPhone 18 Pro / iOS 27.0 during the October 25, 2026 session.
+Press **Command-U** in Xcode with the MiniMaps scheme selected. **16 XCTest tests passed with zero failures** on iPhone 18 Pro / iOS 27.0 during the October 25, 2026 session.
 
 Tests inject controlled search and directions services into `MapModel`; they do not make live Apple service requests. Coverage includes blank/trimmed queries, regional search hints, successful/empty/failed searches, recovery, cancelled and out-of-order responses, driving-mode and origin selection, missing/stale location fixes, route errors, and cancellation after destination/origin changes. Real permissions, rendered maps, real-world route correctness, and GPS quality still need integration/manual testing.
+
+The authorization regression tests also verify that granting access in Settings clears a previous denial/restriction message without requesting location automatically, and that revoking access removes the last fix.
 
 ## Verification
 
