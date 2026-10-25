@@ -63,6 +63,8 @@ Press **Command-U** with the MiniMaps scheme selected. **16 XCTest tests passed 
 
 Tests cover blank/trimmed queries, regional search hints, successful/empty/failed search responses, recovery, cancellation and late responses, route origin selection, missing/stale location fixes, route errors, destination/origin changes, and authorization grant/revocation state. Search and directions are replaced by controlled test doubles; these tests do not validate live Apple service results or real GPS behavior.
 
+For test-by-test assertions, test doubles, and execution instructions, see the [unit-test catalog](TESTING.md#unit-test-catalog) and [running the unit tests](TESTING.md#running-the-unit-tests).
+
 ## Verification and limits
 
 The latest video demonstrates a simulated location update, Ferry Building search, map-pin selection, My location routing, and satellite presentation. Permission prompting, denied access, and recovery after a Settings change were checked separately; they are not all shown in the video.
