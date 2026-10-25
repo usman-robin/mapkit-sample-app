@@ -3,6 +3,55 @@ import CoreLocation
 import MapKit
 import SwiftUI
 
+
+struct PlaceSearchResult {
+    let items: [MKMapItem]
+    let region: MKCoordinateRegion
+}
+
+@MainActor
+protocol PlaceSearching: AnyObject {
+    func start(_ completion: @escaping @MainActor (Result<PlaceSearchResult, Error>) -> Void)
+    func cancel()
+}
+
+@MainActor
+protocol RouteCalculating: AnyObject {
+    func calculate(_ completion: @escaping @MainActor (Result<MKRoute?, Error>) -> Void)
+    func cancel()
+}
+
+@MainActor
+final class LivePlaceSearch: PlaceSearching {
+    private let operation: MKLocalSearch
+    init(_ request: MKLocalSearch.Request) { operation = MKLocalSearch(request: request) }
+    func start(_ completion: @escaping @MainActor (Result<PlaceSearchResult, Error>) -> Void) {
+        operation.start { response, error in
+            Task { @MainActor in
+                if let error { completion(.failure(error)) }
+                else if let response { completion(.success(.init(items: response.mapItems, region: response.boundingRegion))) }
+                else { completion(.failure(MKError(.unknown))) }
+            }
+        }
+    }
+    func cancel() { operation.cancel() }
+}
+
+@MainActor
+final class LiveDirections: RouteCalculating {
+    private let operation: MKDirections
+    init(_ request: MKDirections.Request) { operation = MKDirections(request: request) }
+    func calculate(_ completion: @escaping @MainActor (Result<MKRoute?, Error>) -> Void) {
+        operation.calculate { response, error in
+            Task { @MainActor in
+                if let error { completion(.failure(error)) }
+                else { completion(.success(response?.routes.first)) }
+            }
+        }
+    }
+    func cancel() { operation.cancel() }
+}
+
 struct Place: Identifiable {
     let id = UUID()
     let item: MKMapItem
@@ -30,13 +79,19 @@ final class MapModel: NSObject, ObservableObject, @preconcurrency CLLocationMana
     var visibleRegion = region
     var selectedPlace: Place? { places.first { $0.id == selection } }
     private let manager = CLLocationManager()
-    private var search: MKLocalSearch?
-    private var directions: MKDirections?
+    private var search: (any PlaceSearching)?
+    private var directions: (any RouteCalculating)?
     private var searchID = UUID()
     private var routeID = UUID()
     private var locationTimeout: Task<Void, Never>?
 
-    override init() {
+    private let searchFactory: @MainActor (MKLocalSearch.Request) -> any PlaceSearching
+    private let directionsFactory: @MainActor (MKDirections.Request) -> any RouteCalculating
+
+    init(searchFactory: @escaping @MainActor (MKLocalSearch.Request) -> any PlaceSearching = { LivePlaceSearch($0) },
+         directionsFactory: @escaping @MainActor (MKDirections.Request) -> any RouteCalculating = { LiveDirections($0) }) {
+        self.searchFactory = searchFactory
+        self.directionsFactory = directionsFactory
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
@@ -52,27 +107,24 @@ final class MapModel: NSObject, ObservableObject, @preconcurrency CLLocationMana
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = text
         request.region = visibleRegion // A relevance hint, not a strict geographic boundary.
-        let operation = MKLocalSearch(request: request)
+        let operation = searchFactory(request)
         search = operation
         let id = searchID
         isSearching = true
         searchMessage = nil
-        operation.start { [weak self] response, error in
-            Task { @MainActor in
-                guard let self, self.searchID == id else { return }
-                self.isSearching = false
-                self.search = nil
-                guard let response, error == nil else {
-                    if (error as? MKError)?.code == .placemarkNotFound {
-                        self.searchMessage = "No places found. Try a different name or address."
-                    } else {
-                        self.searchMessage = "Search couldn’t finish. Check your connection and try again."
-                    }
-                    return
-                }
-                self.places = response.mapItems.filter { CLLocationCoordinate2DIsValid($0.placemark.coordinate) }.map { Place(item: $0) }
+        operation.start { [weak self] result in
+            guard let self, self.searchID == id else { return }
+            self.isSearching = false
+            self.search = nil
+            switch result {
+            case .failure(let error):
+                self.searchMessage = (error as? MKError)?.code == .placemarkNotFound
+                    ? "No places found. Try a different name or address."
+                    : "Search couldn’t finish. Check your connection and try again."
+            case .success(let response):
+                self.places = response.items.filter { CLLocationCoordinate2DIsValid($0.placemark.coordinate) }.map { Place(item: $0) }
                 if self.places.isEmpty { self.searchMessage = "No places found. Try a different name or address." }
-                else { self.camera = .region(response.boundingRegion) }
+                else { self.camera = .region(response.region) }
             }
         }
     }
@@ -113,23 +165,21 @@ final class MapModel: NSObject, ObservableObject, @preconcurrency CLLocationMana
         request.source = MKMapItem(placemark: MKPlacemark(coordinate: origin))
         request.destination = destination.item
         request.transportType = .automobile
-        let operation = MKDirections(request: request)
+        let operation = directionsFactory(request)
         directions = operation
         let id = routeID
         isRouting = true
-        operation.calculate { [weak self] response, error in
-            Task { @MainActor in
-                guard let self, self.routeID == id else { return }
-                self.isRouting = false
-                self.directions = nil
-                guard error == nil, let route = response?.routes.first else {
-                    self.routeMessage = "No driving route available. Try another destination or check your connection."
-                    return
-                }
-                self.route = route
-                let rect = route.polyline.boundingMapRect
-                self.camera = .rect(rect.insetBy(dx: -max(rect.width * 0.18, 200), dy: -max(rect.height * 0.18, 200)))
+        operation.calculate { [weak self] result in
+            guard let self, self.routeID == id else { return }
+            self.isRouting = false
+            self.directions = nil
+            guard case .success(let route?) = result else {
+                self.routeMessage = "No driving route available. Try another destination or check your connection."
+                return
             }
+            self.route = route
+            let rect = route.polyline.boundingMapRect
+            self.camera = .rect(rect.insetBy(dx: -max(rect.width * 0.18, 200), dy: -max(rect.height * 0.18, 200)))
         }
     }
 
