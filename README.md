@@ -43,7 +43,7 @@ Apple documentation: [MapKit](https://developer.apple.com/documentation/mapkit/)
 | --- | --- | --- |
 | <img src="search-results.png" width="240" alt="Search results"> | <img src="driving-route.png" width="240" alt="Driving route"> | <img src="satellite-route.png" width="240" alt="Satellite route"> |
 
-An earlier capture of denied location access is also included in docs/screenshots; it shows the previous display name.
+[Denied-location screenshot](location-denied.png) was captured before the final display-name change.
 
 ## Automated unit tests
 
