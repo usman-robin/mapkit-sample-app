@@ -37,9 +37,12 @@ struct ContentView: View {
 
     private var searchHeader: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Usman’s Mapkit Demo").font(.headline)
-                Spacer()
+            Text("Usman’s Mapkit Demo")
+                .font(.title3.weight(.semibold))
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 32)
+                .overlay(alignment: .trailing) {
                 Button("Reset", systemImage: "arrow.counterclockwise") {
                     model.cancelRoute()
                     withAnimation { model.camera = .region(MapModel.region) }
